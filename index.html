@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teckey AI Assistant</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Google Material Symbols Outlined -->
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Chatbot Widget -->
+        <div class="chatbot-widget hidden" id="chatbotWidget">
+            <div class="chatbot-header">
+                <div class="header-title">
+                    <span class="material-symbols-outlined">robot_2</span>
+                    <h3>Teckey AI Assistant</h3>
+                </div>
+                <button id="closeChat" class="header-action">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="chatbot-messages" id="chatbotMessages">
+                <div class="message bot-message">
+                    Hello! I'm the Teckey AI assistant. How can I help you today?
+                </div>
+            </div>
+            <div class="chatbot-input">
+                <input type="text" id="chatInput" placeholder="Type your message...">
+                <button id="sendChat"><span class="material-symbols-outlined">send</span></button>
+            </div>
+        </div>
+
+        <!-- Floating Chat Toggle -->
+        <button id="chatToggle" class="chat-toggle">
+            <span class="material-symbols-outlined">chat</span>
+        </button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
