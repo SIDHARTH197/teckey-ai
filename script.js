@@ -44,7 +44,7 @@ document.addEventListener("DOMContentLoaded", function () {
         try {
             // Uncomment the lines below to load visual history on refresh if desired in the future:
             /*
-            const response = await fetch(`http://localhost:3000/api/history/${sessionId}`);
+            const response = await fetch(`/api/history/${sessionId}`);
             if (response.ok) {
                 const history = await response.json();
                 // Render it if needed...
@@ -63,7 +63,7 @@ document.addEventListener("DOMContentLoaded", function () {
     async function fetchLlama3Response(userMessage) {
         try {
             // Call our Node.js backend instead of calling Groq directly
-            const response = await fetch('http://localhost:3000/api/chat', {
+            const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
