@@ -61,16 +61,46 @@ document.addEventListener("DOMContentLoaded", function () {
     loadHistory();
 
     async function fetchLlama3Response(userMessage) {
+        // 1. Handle Admin Login Command
+        if (userMessage.startsWith('/admin ')) {
+            const key = userMessage.replace('/admin ', '').trim();
+            localStorage.setItem('teckeyAdminKey', key);
+            return "Admin key saved locally. You can now use /feed commands.";
+        }
+
+        // 2. Handle Knowledge Feeding Command
+        if (userMessage.startsWith('/feed ')) {
+            const adminKey = localStorage.getItem('teckeyAdminKey');
+            const parts = userMessage.replace('/feed ', '').split('|');
+            if (parts.length < 2) return "Format error. Use: /feed Topic | Content";
+
+            try {
+                const response = await fetch('/api/admin/feed', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        adminKey,
+                        topic: parts[0].trim(),
+                        content: parts[1].trim()
+                    })
+                });
+                const resData = await response.json();
+                return resData.message || resData.error;
+            } catch (err) {
+                return "Failed to connect to admin API.";
+            }
+        }
+
+        // 3. Regular Chat
         try {
-            // Call our Node.js backend instead of calling Groq directly
+            const adminKey = localStorage.getItem('teckeyAdminKey');
             const response = await fetch('/api/chat', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     sessionId: sessionId,
-                    message: userMessage
+                    message: userMessage,
+                    adminKey: adminKey // Send key if we have it
                 })
             });
 
@@ -82,7 +112,7 @@ document.addEventListener("DOMContentLoaded", function () {
             return data.reply;
         } catch (error) {
             console.error('Error fetching from backend:', error);
-            return "I'm sorry, I couldn't connect to the server. Please make sure the Node.js backend is running.";
+            return "I'm sorry, I couldn't connect to the server.";
         }
     }
 
