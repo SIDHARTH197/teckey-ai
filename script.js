@@ -147,10 +147,20 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (sendChatBtn && chatInput) {
+        // Auto-resize textarea as user types
+        chatInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
         sendChatBtn.addEventListener('click', handleSendMessage);
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
+        
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevent new line on regular Enter
                 handleSendMessage();
+                // Reset height after sending
+                chatInput.style.height = 'auto';
             }
         });
     }
