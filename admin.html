@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teckey Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <style>
+        :root {
+            --primary: #6366f1;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f8fafc;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .dashboard {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        h1 { margin-bottom: 1.5rem; font-weight: 700; color: var(--primary); }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+
+        label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: #94a3b8; }
+
+        input[type="password"], input[type="file"] {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: white;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4); }
+
+        #status {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            display: none;
+        }
+
+        .success { background: #065f46; color: #34d399; display: block !important; }
+        .error { background: #7f1d1d; color: #f87171; display: block !important; }
+
+        .loading-spinner {
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <h1>Teckey Knowledge Admin</h1>
+        <p style="color: #94a3b8; margin-bottom: 2rem;">Upload documents to feed the AI Knowledge Base.</p>
+        
+        <div class="input-group">
+            <label>Admin Secret Key</label>
+            <input type="password" id="adminKey" placeholder="Enter your secret key">
+        </div>
+
+        <div class="input-group">
+            <label>Select Document (PDF or DOCX)</label>
+            <input type="file" id="fileInput" accept=".pdf,.docx">
+        </div>
+
+        <button id="uploadBtn">
+            <span id="btnText">Upload and Process</span>
+        </button>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInput = document.getElementById('fileInput');
+        const adminKeyInput = document.getElementById('adminKey');
+        const status = document.getElementById('status');
+        const btnText = document.getElementById('btnText');
+
+        uploadBtn.addEventListener('click', async () => {
+            const file = fileInput.files[0];
+            const adminKey = adminKeyInput.value;
+
+            if (!file || !adminKey) {
+                showStatus('Please provide both the key and a file.', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('adminKey', adminKey);
+
+            try {
+                btnText.innerHTML = '<span class="material-symbols-outlined loading-spinner">sync</span>Processing...';
+                uploadBtn.disabled = true;
+                status.className = '';
+
+                const response = await fetch('/api/admin/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showStatus(result.message, 'success');
+                } else {
+                    showStatus(result.error || 'Upload failed', 'error');
+                }
+            } catch (err) {
+                showStatus('Connection error. Is the server running?', 'error');
+            } finally {
+                btnText.innerText = 'Upload and Process';
+                uploadBtn.disabled = false;
+            }
+        });
+
+        function showStatus(msg, type) {
+            status.innerText = msg;
+            status.className = type;
+        }
+    </script>
+</body>
+</html>

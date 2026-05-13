@@ -2,10 +2,17 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const multer = require('multer');
+const pdf = require('pdf-parse');
+const mammoth = require('mammoth');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Configure Multer for file uploads
+const upload = multer({ dest: 'uploads/' });
 
 // Middleware
 app.use(cors());
@@ -50,7 +57,47 @@ const SYSTEM_PROMPT = {
   content: 'You are an intelligent, helpful, and concise AI customer support assistant for Teckey. Teckey provides digital marketing, web development, and an advanced e-commerce analytics dashboard. Use the provided [FACTS] to answer accurately. If you don\'t know something, say so.'
 };
 
-// API Route for Admin to "feed" data
+// Admin Route to Upload Documents (PDF/DOCX)
+app.post('/api/admin/upload', upload.single('file'), async (req, res) => {
+  const { adminKey } = req.body;
+
+  if (adminKey !== process.env.ADMIN_SECRET_KEY) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  try {
+    let extractedText = '';
+    const filePath = req.file.path;
+
+    if (req.file.mimetype === 'application/pdf') {
+      const dataBuffer = fs.readFileSync(filePath);
+      const data = await pdf(dataBuffer);
+      extractedText = data.text;
+    } else if (req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      const result = await mammoth.extractRawText({ path: filePath });
+      extractedText = result.value;
+    } else {
+      fs.unlinkSync(filePath);
+      return res.status(400).json({ error: 'Unsupported file type. Use PDF or DOCX.' });
+    }
+
+    const newKnowledge = new Knowledge({
+      topic: `File: ${req.file.originalname}`,
+      content: extractedText.trim()
+    });
+    await newKnowledge.save();
+    fs.unlinkSync(filePath);
+    res.json({ message: `Successfully processed and learned from ${req.file.originalname}` });
+  } catch (error) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: 'Failed to process document' });
+  }
+});
+
+// API Route for Admin to "feed" data manually
 app.post('/api/admin/feed', async (req, res) => {
   const { adminKey, topic, content } = req.body;
 
