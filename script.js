@@ -21,12 +21,12 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // 1. Session Management
+    // 1. Session Management (Ephemeral for Guests)
     const SESSION_KEY = 'teckeySessionId';
-    let sessionId = localStorage.getItem(SESSION_KEY);
+    let sessionId = sessionStorage.getItem(SESSION_KEY);
     if (!sessionId) {
         sessionId = 'session_' + Math.random().toString(36).substring(2, 15);
-        localStorage.setItem(SESSION_KEY, sessionId);
+        sessionStorage.setItem(SESSION_KEY, sessionId);
     }
 
     // Function to add a message to the UI
