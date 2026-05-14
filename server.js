@@ -120,7 +120,7 @@ app.post('/api/admin/feed', async (req, res) => {
  * Searches for relevant facts across Knowledge and all Conversations
  * This is the core of our Hybrid RAG system.
  */
-async function getRelevantContext(userQuery) {
+async function getRelevantContext(userQuery, isAdmin) {
   try {
     const keywords = userQuery.toLowerCase()
       .replace(/[^\w\s]/g, '')
@@ -131,7 +131,7 @@ async function getRelevantContext(userQuery) {
 
     const regexQueries = keywords.map(kw => new RegExp(kw, 'i'));
 
-    // Search Knowledge Collection
+    // 1. Search Knowledge Collection (ALWAYS available to everyone)
     const knowledgeDocs = await Knowledge.find({
       $or: [
         { topic: { $in: regexQueries } },
@@ -139,23 +139,25 @@ async function getRelevantContext(userQuery) {
       ]
     }).limit(5);
 
-    // Search Conversations (scans all messages in all sessions)
-    const convDocs = await Conversation.find({
-      "messages.content": { $in: regexQueries }
-    }).limit(5);
-
     let contextString = "";
     knowledgeDocs.forEach(doc => {
-      contextString += `[FACT] Topic: ${doc.topic} | Content: ${doc.content}\n`;
+      contextString += `[OFFICIAL FACT] Topic: ${doc.topic} | Content: ${doc.content}\n`;
     });
 
-    convDocs.forEach(doc => {
-      doc.messages.forEach(msg => {
-        if (msg.role !== 'system' && regexQueries.some(rx => rx.test(msg.content))) {
-          contextString += `[PAST CHAT] ${msg.content}\n`;
-        }
+    // 2. Search Conversations (ONLY available to Admin)
+    if (isAdmin) {
+      const convDocs = await Conversation.find({
+        "messages.content": { $in: regexQueries }
+      }).limit(5);
+
+      convDocs.forEach(doc => {
+        doc.messages.forEach(msg => {
+          if (msg.role !== 'system' && regexQueries.some(rx => rx.test(msg.content))) {
+            contextString += `[PAST ADMIN CHAT] ${msg.content}\n`;
+          }
+        });
       });
-    });
+    }
 
     return contextString.trim();
   } catch (error) {
@@ -177,7 +179,8 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     // 1. Fetch relevant knowledge from MongoDB (RAG Search)
-    const contextFacts = await getRelevantContext(message);
+    // Pass the isAdmin flag to the search engine to restrict guest access
+    const contextFacts = await getRelevantContext(message, isAdmin);
 
     // 2. Separate logic for Admin (History + Saving) vs Guest (Stateless)
     let messagesForGroq = [];
