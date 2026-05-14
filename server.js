@@ -114,6 +114,54 @@ app.post('/api/admin/feed', async (req, res) => {
   }
 });
 
+/**
+ * Searches for relevant facts across Knowledge and all Conversations
+ * This is the core of our Hybrid RAG system.
+ */
+async function getRelevantContext(userQuery) {
+  try {
+    const keywords = userQuery.toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter(word => word.length > 3);
+
+    if (keywords.length === 0) return "";
+
+    const regexQueries = keywords.map(kw => new RegExp(kw, 'i'));
+
+    // Search Knowledge Collection
+    const knowledgeDocs = await Knowledge.find({
+      $or: [
+        { topic: { $in: regexQueries } },
+        { content: { $in: regexQueries } }
+      ]
+    }).limit(5);
+
+    // Search Conversations (scans all messages in all sessions)
+    const convDocs = await Conversation.find({
+      "messages.content": { $in: regexQueries }
+    }).limit(5);
+
+    let contextString = "";
+    knowledgeDocs.forEach(doc => {
+      contextString += `[FACT] Topic: ${doc.topic} | Content: ${doc.content}\n`;
+    });
+
+    convDocs.forEach(doc => {
+      doc.messages.forEach(msg => {
+        if (msg.role !== 'system' && regexQueries.some(rx => rx.test(msg.content))) {
+          contextString += `[PAST CHAT] ${msg.content}\n`;
+        }
+      });
+    });
+
+    return contextString.trim();
+  } catch (error) {
+    console.error("Search Context Error:", error);
+    return "";
+  }
+}
+
 // API Route to handle chat messages
 app.post('/api/chat', async (req, res) => {
   const { sessionId, message, adminKey } = req.body;
@@ -124,11 +172,10 @@ app.post('/api/chat', async (req, res) => {
   }
 
   try {
-    // 1. Fetch relevant knowledge from MongoDB
-    const allKnowledge = await Knowledge.find({});
-    const contextFacts = allKnowledge.map(k => `[FACT: ${k.topic}] ${k.content}`).join('\n');
+    // 1. Fetch relevant knowledge from MongoDB (RAG Search)
+    const contextFacts = await getRelevantContext(message);
 
-    // 2. Manage Conversation
+    // 2. Manage current session Conversation
     let conversation = await Conversation.findOne({ sessionId });
     if (!conversation) {
       conversation = new Conversation({
@@ -143,7 +190,7 @@ app.post('/api/chat', async (req, res) => {
 
     // 3. Prepare AI Payload
     const messagesForGroq = [
-      { role: 'system', content: SYSTEM_PROMPT.content + (contextFacts ? '\n\nAdditional Facts:\n' + contextFacts : '') },
+      { role: 'system', content: SYSTEM_PROMPT.content + (contextFacts ? '\n\nRelevant Facts Found:\n' + contextFacts : '') },
       ...conversation.messages.slice(-10).map(msg => ({ role: msg.role, content: msg.content }))
     ];
 
