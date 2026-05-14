@@ -179,59 +179,79 @@ app.post('/api/chat', async (req, res) => {
     // 1. Fetch relevant knowledge from MongoDB (RAG Search)
     const contextFacts = await getRelevantContext(message);
 
-    // 2. Manage current session Conversation
-    let conversation = await Conversation.findOne({ sessionId });
-    if (!conversation) {
-      conversation = new Conversation({
-        sessionId,
-        messages: [SYSTEM_PROMPT]
-      });
-    }
+    // 2. Separate logic for Admin (History + Saving) vs Guest (Stateless)
+    let messagesForGroq = [];
 
-    // Add user message
-    const userMsg = { role: 'user', content: message };
-    conversation.messages.push(userMsg);
-
-    // 3. Prepare AI Payload
-    const messagesForGroq = [
-      { role: 'system', content: SYSTEM_PROMPT.content + (contextFacts ? '\n\nRelevant Facts Found:\n' + contextFacts : '') },
-      ...conversation.messages.slice(-10).map(msg => ({ role: msg.role, content: msg.content }))
-    ];
-
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: messagesForGroq,
-        temperature: 0.7,
-        max_tokens: 1024
-      })
-    });
-
-    if (!response.ok) throw new Error(`Groq API Error: ${response.status}`);
-
-    const data = await response.json();
-    const botResponseContent = data.choices[0].message.content;
-
-    // 4. Save to MongoDB ONLY if Admin
     if (isAdmin) {
-      const botMsg = { role: 'assistant', content: botResponseContent };
-      conversation.messages.push(botMsg);
+      // ADMIN MODE: Full history management and database persistence
+      let conversation = await Conversation.findOne({ sessionId });
+      if (!conversation) {
+        conversation = new Conversation({
+          sessionId,
+          messages: [SYSTEM_PROMPT]
+        });
+      }
+
+      // Add user message to history
+      conversation.messages.push({ role: 'user', content: message });
+
+      // Prepare payload with last 10 messages for context
+      messagesForGroq = [
+        { role: 'system', content: SYSTEM_PROMPT.content + (contextFacts ? '\n\nRelevant Facts Found:\n' + contextFacts : '') },
+        ...conversation.messages.slice(-10).map(msg => ({ role: msg.role, content: msg.content }))
+      ];
+
+      // Fetch AI Response
+      const botReply = await callGroqAPI(messagesForGroq);
+
+      // Save to MongoDB
+      conversation.messages.push({ role: 'assistant', content: botReply });
       conversation.updatedAt = Date.now();
       await conversation.save();
-    }
 
-    res.json({ reply: botResponseContent });
+      return res.json({ reply: botReply });
+
+    } else {
+      // GUEST MODE: Stateless. No history, no saving.
+      messagesForGroq = [
+        { role: 'system', content: SYSTEM_PROMPT.content + (contextFacts ? '\n\nRelevant Facts:\n' + contextFacts : '') },
+        { role: 'user', content: message } // ONLY the current message
+      ];
+
+      const botReply = await callGroqAPI(messagesForGroq);
+      
+      // We DO NOT save anything to the database for guests
+      return res.json({ reply: botReply });
+    }
 
   } catch (error) {
     console.error('Error in /api/chat:', error);
     res.status(500).json({ error: 'Failed to process chat message' });
   }
 });
+
+/**
+ * Helper to talk to Groq API
+ */
+async function callGroqAPI(messages) {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: messages,
+      temperature: 0.7,
+      max_tokens: 1024
+    })
+  });
+
+  if (!response.ok) throw new Error(`Groq API Error: ${response.status}`);
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
 
 // API Route to load history
 app.get('/api/history/:sessionId', async (req, res) => {
