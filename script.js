@@ -68,6 +68,12 @@ document.addEventListener("DOMContentLoaded", function () {
             return "Admin key saved locally. You can now use /feed commands.";
         }
 
+        // 1.5 Handle Admin Logout Command
+        if (userMessage.toLowerCase() === '/logout') {
+            localStorage.removeItem('teckeyAdminKey');
+            return "Logged out from Admin mode. Conversations will no longer be saved.";
+        }
+
         // 2. Handle Knowledge Feeding Command
         if (userMessage.startsWith('/feed ')) {
             const adminKey = localStorage.getItem('teckeyAdminKey');

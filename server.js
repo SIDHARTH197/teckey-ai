@@ -60,10 +60,11 @@ const SYSTEM_PROMPT = {
 // Admin Route to Upload Documents (PDF/DOCX)
 app.post('/api/admin/upload', upload.single('file'), async (req, res) => {
   const { adminKey } = req.body;
+  const validAdmin = !!(adminKey && process.env.ADMIN_SECRET_KEY && adminKey === process.env.ADMIN_SECRET_KEY);
 
-  if (adminKey !== process.env.ADMIN_SECRET_KEY) {
+  if (!validAdmin) {
     if (req.file) fs.unlinkSync(req.file.path);
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(401).json({ error: 'Unauthorized: Invalid Admin Key' });
   }
 
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -100,8 +101,9 @@ app.post('/api/admin/upload', upload.single('file'), async (req, res) => {
 // API Route for Admin to "feed" data manually
 app.post('/api/admin/feed', async (req, res) => {
   const { adminKey, topic, content } = req.body;
+  const validAdmin = !!(adminKey && process.env.ADMIN_SECRET_KEY && adminKey === process.env.ADMIN_SECRET_KEY);
 
-  if (adminKey !== process.env.ADMIN_SECRET_KEY) {
+  if (!validAdmin) {
     return res.status(401).json({ error: 'Unauthorized: Invalid Admin Key' });
   }
 
@@ -165,7 +167,9 @@ async function getRelevantContext(userQuery) {
 // API Route to handle chat messages
 app.post('/api/chat', async (req, res) => {
   const { sessionId, message, adminKey } = req.body;
-  const isAdmin = (adminKey === process.env.ADMIN_SECRET_KEY);
+  
+  // Robust admin check: requires both keys to exist and match
+  const isAdmin = !!(adminKey && process.env.ADMIN_SECRET_KEY && adminKey === process.env.ADMIN_SECRET_KEY);
 
   if (!sessionId || !message) {
     return res.status(400).json({ error: 'sessionId and message are required' });
